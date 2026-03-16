@@ -1,0 +1,5 @@
+[tools]
+elixir = "1.19"
+elixir-ls = "0.30.0"
+erlang = "28"
+github-cli = "latest"
