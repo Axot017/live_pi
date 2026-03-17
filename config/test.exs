@@ -20,3 +20,11 @@ config :phoenix_live_view,
 # Sort query params output of verified routes for robust url comparisons
 config :phoenix,
   sort_verified_routes_query_params: true
+
+config :live_pi,
+  pi_module: LivePi.PiMock,
+  projects_module: LivePi.ProjectsMock,
+  project_roots: [Path.expand("../tmp/test-projects", __DIR__)],
+  managed_clone_root: Path.expand("../tmp/test-clones", __DIR__),
+  pi_executable: "pi",
+  pi_default_args: []
