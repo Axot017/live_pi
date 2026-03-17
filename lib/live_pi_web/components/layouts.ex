@@ -5,26 +5,8 @@ defmodule LivePiWeb.Layouts do
   """
   use LivePiWeb, :html
 
-  # Embed all files in layouts/* within this module.
-  # The default root.html.heex file contains the HTML
-  # skeleton of your application, namely HTML headers
-  # and other static content.
   embed_templates "layouts/*"
 
-  @doc """
-  Renders your app layout.
-
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
-
-  ## Examples
-
-      <Layouts.app flash={@flash}>
-        <h1>Content</h1>
-      </Layouts.app>
-
-  """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
   attr :current_scope, :map,
@@ -35,50 +17,36 @@ defmodule LivePiWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
+    <div class="min-h-screen bg-[radial-gradient(circle_at_top,_oklch(0.97_0.03_250),_transparent_32%),linear-gradient(180deg,_oklch(0.99_0_0),_oklch(0.96_0.01_250))] text-base-content dark:bg-[radial-gradient(circle_at_top,_oklch(0.28_0.04_250),_transparent_28%),linear-gradient(180deg,_oklch(0.19_0.02_250),_oklch(0.15_0.02_250))]">
+      <header class="border-b border-base-300/70 bg-base-100/75 backdrop-blur-xl">
+        <div class="mx-auto flex max-w-[92rem] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div class="flex items-center gap-3">
+            <div class="flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-sm shadow-primary/10">
+              <.icon name="hero-command-line" class="size-5" />
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-primary/80">Live Pi</p>
+              <h1 class="text-lg font-semibold tracking-tight">Pi agent workspace</h1>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="hidden rounded-2xl border border-base-300/70 bg-base-100/80 px-3 py-2 text-xs text-base-content/60 sm:block">
+              Server-side projects · LiveView UI · RPC streaming
+            </div>
             <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </header>
+          </div>
+        </div>
+      </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
+      <main class="mx-auto max-w-[92rem] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         {render_slot(@inner_block)}
-      </div>
-    </main>
+      </main>
 
-    <.flash_group flash={@flash} />
+      <.flash_group flash={@flash} />
+    </div>
     """
   end
 
-  @doc """
-  Shows the flash group with standard titles and content.
-
-  ## Examples
-
-      <.flash_group flash={@flash} />
-  """
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
 
@@ -115,38 +83,36 @@ defmodule LivePiWeb.Layouts do
     """
   end
 
-  @doc """
-  Provides dark vs light theme toggle based on themes defined in app.css.
-
-  See <head> in root.html.heex which applies the theme before page load.
-  """
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 transition-[left]" />
+    <div class="relative flex flex-row items-center rounded-full border border-base-300/80 bg-base-200/80 p-1">
+      <div class="absolute left-1 h-9 w-9 rounded-full bg-base-100 shadow-sm transition-[left] [[data-theme=light]_&]:left-10 [[data-theme=dark]_&]:left-[4.75rem]" />
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex size-9 cursor-pointer items-center justify-center rounded-full text-base-content/70 transition hover:text-base-content"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
+        type="button"
       >
-        <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name="hero-computer-desktop" class="size-4" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex size-9 cursor-pointer items-center justify-center rounded-full text-base-content/70 transition hover:text-base-content"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
+        type="button"
       >
-        <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name="hero-sun" class="size-4" />
       </button>
 
       <button
-        class="flex p-2 cursor-pointer w-1/3"
+        class="relative z-10 flex size-9 cursor-pointer items-center justify-center rounded-full text-base-content/70 transition hover:text-base-content"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        type="button"
       >
-        <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
+        <.icon name="hero-moon" class="size-4" />
       </button>
     </div>
     """

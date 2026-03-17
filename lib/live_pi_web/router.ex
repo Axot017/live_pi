@@ -1,11 +1,14 @@
 defmodule LivePiWeb.Router do
   use LivePiWeb, :router
 
+  import Plug.Conn
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {LivePiWeb.Layouts, :root}
+    plug :ensure_browser_session_id
     plug :protect_from_forgery
     plug :put_secure_browser_headers
   end
@@ -17,13 +20,26 @@ defmodule LivePiWeb.Router do
   scope "/", LivePiWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", WorkspaceLive
   end
 
   # Other scopes may use custom stacks.
   # scope "/api", LivePiWeb do
   #   pipe_through :api
   # end
+
+  defp ensure_browser_session_id(conn, _opts) do
+    case get_session(conn, :browser_session_id) do
+      nil -> put_session(conn, :browser_session_id, new_browser_session_id())
+      _session_id -> conn
+    end
+  end
+
+  defp new_browser_session_id do
+    12
+    |> :crypto.strong_rand_bytes()
+    |> Base.url_encode64(padding: false)
+  end
 
   # Enable LiveDashboard in development
   if Application.compile_env(:live_pi, :dev_routes) do
