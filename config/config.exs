@@ -8,7 +8,15 @@
 import Config
 
 config :live_pi,
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  project_roots: [],
+  managed_clone_root: nil,
+  pi_executable: "pi",
+  pi_default_args: []
+
+config :live_pi,
+  pi_module: LivePi.Pi.Session,
+  projects_module: LivePi.Projects.Local
 
 # Configure the endpoint
 config :live_pi, LivePiWeb.Endpoint,

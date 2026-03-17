@@ -23,6 +23,29 @@ end
 config :live_pi, LivePiWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+path_separator = if match?({:win32, _}, :os.type()), do: ";", else: ":"
+
+project_roots =
+  System.get_env("LIVE_PI_PROJECT_ROOTS", "")
+  |> String.split(path_separator, trim: true)
+  |> Enum.map(&Path.expand/1)
+
+managed_clone_root =
+  case System.get_env("LIVE_PI_MANAGED_CLONE_ROOT") do
+    nil -> nil
+    path -> Path.expand(path)
+  end
+
+pi_default_args =
+  System.get_env("LIVE_PI_PI_ARGS", "")
+  |> String.split(" ", trim: true)
+
+config :live_pi,
+  project_roots: project_roots,
+  managed_clone_root: managed_clone_root,
+  pi_executable: System.get_env("LIVE_PI_EXECUTABLE", "pi"),
+  pi_default_args: pi_default_args
+
 if config_env() == :prod do
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

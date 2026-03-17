@@ -31,7 +31,10 @@ defmodule LivePiWeb.ConnCase do
     end
   end
 
-  setup _tags do
+  setup tags do
+    Mox.set_mox_from_context(tags)
+    Mox.verify_on_exit!()
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end
