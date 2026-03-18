@@ -11,8 +11,9 @@ defmodule LivePi.Application do
       LivePiWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:live_pi, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LivePi.PubSub},
-      {Task.Supervisor, name: LivePi.TaskSupervisor},
-      LivePi.Pi.SessionSupervisor,
+      # Start a worker by calling: LivePi.Worker.start_link(arg)
+      # {LivePi.Worker, arg},
+      # Start to serve requests, typically the last entry
       LivePiWeb.Endpoint
     ]
 
