@@ -1,5 +1,8 @@
 [tools]
+"npm:@playwright/cli" = "latest"
+"npm:playwright" = "latest"
 elixir = "1.19"
 elixir-ls = "0.30.0"
 erlang = "28"
 github-cli = "latest"
+node = "latest"
