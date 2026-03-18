@@ -3,6 +3,9 @@ defmodule LivePiWeb.PageControllerTest do
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+    html = html_response(conn, 200)
+
+    assert html =~ "repository url"
+    assert html =~ "live_pi"
   end
 end
