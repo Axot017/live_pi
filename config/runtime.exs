@@ -1,4 +1,15 @@
 import Config
+import Dotenvy
+
+source!([
+  Path.expand("../.env", __DIR__),
+  Path.expand("../.env.#{config_env()}", __DIR__),
+  System.get_env()
+])
+
+config :live_pi,
+       :projects_root,
+       System.get_env("LIVE_PI_PROJECTS_DIR", Path.expand("~/Projects"))
 
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
