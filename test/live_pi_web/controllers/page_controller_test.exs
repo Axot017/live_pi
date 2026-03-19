@@ -7,6 +7,6 @@ defmodule LivePiWeb.PageControllerTest do
 
     assert html =~ "repository url"
     assert html =~ "loading projects from"
-    assert html =~ "No project selected"
+    assert html =~ "/home/axot/Projects"
   end
 end

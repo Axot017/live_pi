@@ -68,16 +68,24 @@ defmodule LivePiWeb.WorkspaceLive do
   def handle_event("clone_repo", %{"repo_url" => repo_url}, socket) do
     repo_url = String.trim(repo_url)
 
-    if repo_url == "" do
-      {:noreply, put_flash(socket, :error, "Paste a repository URL.")}
-    else
-      {:noreply,
-       socket
-       |> assign(:repo_url, repo_url)
-       |> put_flash(
-         :info,
-         "Clone flow is not implemented yet. Projects are loaded from #{socket.assigns.projects_root}."
-       )}
+    case Projects.clone(repo_url) do
+      {:ok, project} ->
+        {:noreply,
+         socket
+         |> assign_cloned_project(project)
+         |> put_flash(:info, "Cloned #{project.name}.")}
+
+      {:exists, project} ->
+        {:noreply,
+         socket
+         |> assign_cloned_project(project)
+         |> put_flash(:info, "#{project.name} already exists.")}
+
+      {:error, message} ->
+        {:noreply,
+         socket
+         |> assign(:repo_url, repo_url)
+         |> put_flash(:error, message)}
     end
   end
 
@@ -123,6 +131,20 @@ defmodule LivePiWeb.WorkspaceLive do
 
     assign(socket, :transcript_items, items)
     |> assign(:expanded, Map.merge(default_expanded(items), socket.assigns.expanded))
+  end
+
+  defp assign_cloned_project(socket, project) do
+    projects = Projects.list()
+    transcript_items = prepare_transcript(selected_project_transcript(project))
+
+    socket
+    |> assign(:projects, projects)
+    |> assign(:selected_project_id, project.id)
+    |> assign(:selected_project, project)
+    |> assign(:transcript_items, transcript_items)
+    |> assign(:expanded, default_expanded(transcript_items))
+    |> assign(:repo_url, "")
+    |> assign(:sidebar_open, false)
   end
 
   defp mock_response_items(project, prompt) do

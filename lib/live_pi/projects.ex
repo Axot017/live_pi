@@ -25,9 +25,54 @@ defmodule LivePi.Projects do
     end
   end
 
+  def clone(repo_url) do
+    with {:ok, repo_name} <- repo_name(repo_url),
+         :ok <- File.mkdir_p(projects_root()) do
+      destination = Path.join(projects_root(), repo_name)
+
+      cond do
+        File.dir?(destination) ->
+          {:exists, to_project(destination)}
+
+        true ->
+          case System.cmd("git", ["clone", String.trim(repo_url), destination],
+                 stderr_to_stdout: true
+               ) do
+            {_output, 0} -> {:ok, to_project(destination)}
+            {output, _exit_code} -> {:error, String.trim(output)}
+          end
+      end
+    else
+      {:error, _reason} = error -> error
+    end
+  end
+
   def projects_root do
     Application.get_env(:live_pi, :projects_root, Path.expand("~/Projects"))
     |> Path.expand()
+  end
+
+  defp repo_name(repo_url) do
+    repo_url
+    |> String.trim()
+    |> String.trim_trailing("/")
+    |> String.split("/")
+    |> List.last()
+    |> case do
+      nil ->
+        {:error, "Paste a repository URL."}
+
+      "" ->
+        {:error, "Paste a repository URL."}
+
+      segment ->
+        segment
+        |> String.replace_suffix(".git", "")
+        |> case do
+          "" -> {:error, "Paste a valid repository URL."}
+          name -> {:ok, name}
+        end
+    end
   end
 
   defp to_project(path) do
