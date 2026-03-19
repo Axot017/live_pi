@@ -67,8 +67,15 @@ body {
 
 input,
 textarea,
-button {
+button,
+summary {
   color: inherit;
+}
+
+.pi-terminal {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .pi-scroll {

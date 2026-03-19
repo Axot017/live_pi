@@ -14,7 +14,7 @@ defmodule LivePiWeb.WorkspaceComponents do
       !@sidebar_open && "-translate-x-full"
     ]}>
       <div class="flex items-center justify-between border-b border-base-300 px-5 py-4 lg:justify-start">
-        <h1 class="text-base font-medium">pi</h1>
+        <h1 class="text-base font-medium tracking-tight">pi</h1>
         <button
           type="button"
           phx-click="close_sidebar"
@@ -111,27 +111,185 @@ defmodule LivePiWeb.WorkspaceComponents do
     """
   end
 
-  attr :messages, :list, required: true
+  attr :items, :list, required: true
+  attr :expanded, :map, required: true
 
-  def message_list(assigns) do
+  def transcript(assigns) do
     ~H"""
     <div class="pi-scroll flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-      <.message :for={message <- @messages} message={message} />
+      <.transcript_item :for={item <- @items} item={item} expanded={@expanded} />
     </div>
     """
   end
 
-  attr :message, :map, required: true
+  attr :item, :map, required: true
+  attr :expanded, :map, required: true
 
-  def message(assigns) do
+  def transcript_item(%{item: %{kind: :user_message}} = assigns) do
     ~H"""
-    <article class={[message_classes(), message_surface_class(@message.role)]}>
-      <div class="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em]">
-        <span class="text-base-content/55">{@message.author}</span>
-        <span class="text-base-content/35">{@message.at}</span>
+    <article class="ml-auto max-w-3xl rounded-xl border border-base-300 bg-neutral px-4 py-3">
+      <div class="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+        <span>{@item.author}</span>
+        <span>{@item.at}</span>
       </div>
-      <p class="text-[15px] leading-7 text-base-content/88 sm:text-sm">{@message.body}</p>
+      <p class="text-[15px] leading-7 text-base-content/88 sm:text-sm">{@item.body}</p>
     </article>
+    """
+  end
+
+  def transcript_item(%{item: %{kind: :assistant_turn}} = assigns) do
+    ~H"""
+    <article class="max-w-3xl rounded-xl border border-base-300 bg-base-200 px-4 py-3">
+      <div class="mb-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+        <span>{@item.author}</span>
+        <span>{@item.at}</span>
+      </div>
+
+      <div class="space-y-3">
+        <.assistant_block :for={block <- @item.blocks} block={block} expanded={@expanded} />
+      </div>
+    </article>
+    """
+  end
+
+  def transcript_item(%{item: %{kind: :tool_run}} = assigns) do
+    ~H"""
+    <article class="max-w-3xl rounded-xl border border-base-300/90 bg-base-100 px-4 py-3">
+      <div class="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+        <div class="flex items-center gap-2">
+          <span>tool</span>
+          <span class="rounded-md border border-base-300 bg-base-200 px-2 py-1 normal-case tracking-normal text-base-content/70">
+            {@item.tool_name}
+          </span>
+        </div>
+        <span class={[
+          "rounded-md px-2 py-1 normal-case tracking-normal",
+          tool_status_class(@item.status)
+        ]}>
+          {tool_status_label(@item.status)}
+        </span>
+      </div>
+
+      <p :if={Map.get(@item, :summary)} class="mt-3 text-sm leading-6 text-base-content/75">
+        {@item.summary}
+      </p>
+
+      <div :if={Map.get(@item, :output)} class="mt-3">
+        <button
+          type="button"
+          phx-click="toggle_expand"
+          phx-value-key={@item.id}
+          class="flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-200/40 px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-base-content/50 transition hover:bg-base-200/70"
+        >
+          <span>output</span>
+          <span>{if Map.get(@expanded, @item.id, false), do: "hide", else: "show"}</span>
+        </button>
+
+        <pre
+          :if={Map.get(@expanded, @item.id, false)}
+          class="pi-terminal mt-2 overflow-x-auto rounded-lg border border-base-300 bg-base-200/60 p-3 text-xs leading-6 text-base-content/78"
+        >{@item.output}</pre>
+      </div>
+
+      <div
+        :if={meta = Map.get(@item, :meta)}
+        class="mt-3 flex flex-wrap gap-2 text-xs text-base-content/50"
+      >
+        <span :for={{label, value} <- meta} class="rounded-md border border-base-300 px-2 py-1">
+          {label}: {value}
+        </span>
+      </div>
+    </article>
+    """
+  end
+
+  def transcript_item(%{item: %{kind: :ui_request}} = assigns) do
+    ~H"""
+    <article class="max-w-3xl rounded-xl border border-info/25 bg-info/8 px-4 py-3">
+      <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-info/80">
+        <span>ui request</span>
+        <span class="rounded-md border border-info/20 px-2 py-1 normal-case tracking-normal text-info/70">
+          {@item.method}
+        </span>
+      </div>
+
+      <h3 class="mt-3 text-sm font-medium text-base-content">{@item.title}</h3>
+      <p :if={Map.get(@item, :message)} class="mt-2 text-sm leading-6 text-base-content/72">
+        {@item.message}
+      </p>
+
+      <div :if={options = Map.get(@item, :options)} class="mt-3 flex flex-wrap gap-2">
+        <span
+          :for={option <- options}
+          class="rounded-md border border-info/20 bg-base-100/60 px-2.5 py-1.5 text-xs text-base-content/70"
+        >
+          {option}
+        </span>
+      </div>
+    </article>
+    """
+  end
+
+  def transcript_item(%{item: %{kind: :system_notice}} = assigns) do
+    ~H"""
+    <article class="max-w-3xl rounded-xl border border-base-300 border-dashed bg-base-100 px-4 py-3">
+      <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/42">
+        <span>system</span>
+        <span>{@item.at}</span>
+      </div>
+      <h3 class="mt-2 text-sm font-medium text-base-content/88">{@item.title}</h3>
+      <p class="mt-1 text-sm leading-6 text-base-content/65">{@item.body}</p>
+    </article>
+    """
+  end
+
+  attr :block, :map, required: true
+  attr :expanded, :map, required: true
+
+  defp assistant_block(%{block: %{kind: :text}} = assigns) do
+    ~H"""
+    <p class="text-[15px] leading-7 text-base-content/88 sm:text-sm">{@block.text}</p>
+    """
+  end
+
+  defp assistant_block(%{block: %{kind: :thinking}} = assigns) do
+    ~H"""
+    <div class="rounded-lg border border-base-300 bg-base-100/45">
+      <button
+        type="button"
+        phx-click="toggle_expand"
+        phx-value-key={@block.id}
+        class="flex w-full items-center justify-between px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-base-content/50"
+      >
+        <span>thinking</span>
+        <span>{if Map.get(@expanded, @block.id, false), do: "hide", else: "show"}</span>
+      </button>
+      <div
+        :if={Map.get(@expanded, @block.id, false)}
+        class="border-t border-base-300 px-3 py-3 text-sm leading-6 text-base-content/65"
+      >
+        {@block.text}
+      </div>
+    </div>
+    """
+  end
+
+  defp assistant_block(%{block: %{kind: :tool_call}} = assigns) do
+    ~H"""
+    <div class="rounded-lg border border-base-300 bg-base-100/45">
+      <button
+        type="button"
+        phx-click="toggle_expand"
+        phx-value-key={@block.id}
+        class="flex w-full items-center justify-between px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-base-content/50"
+      >
+        <span>tool call · {@block.name}</span>
+        <span>{if Map.get(@expanded, @block.id, false), do: "hide", else: "show"}</span>
+      </button>
+      <div :if={Map.get(@expanded, @block.id, false)} class="border-t border-base-300 px-3 py-3">
+        <pre class="pi-terminal overflow-x-auto text-xs leading-6 text-base-content/72">{@block.arguments}</pre>
+      </div>
+    </div>
     """
   end
 
@@ -174,16 +332,19 @@ defmodule LivePiWeb.WorkspaceComponents do
     "flex min-h-14 w-full items-center justify-between border-b border-base-300 px-4 py-4 text-left transition"
   end
 
-  defp message_classes do
-    "max-w-3xl rounded-xl border px-4 py-3"
-  end
-
   defp status_class("active"), do: "bg-success"
   defp status_class("idle"), do: "bg-base-content/25"
   defp status_class("syncing"), do: "bg-info"
   defp status_class("queued"), do: "bg-warning"
   defp status_class(_), do: "bg-base-content/25"
 
-  defp message_surface_class(:assistant), do: "border-base-300 bg-base-200"
-  defp message_surface_class(:user), do: "ml-auto border-base-300 bg-neutral"
+  defp tool_status_class(:running), do: "border border-warning/20 bg-warning/12 text-warning"
+  defp tool_status_class(:ok), do: "border border-success/20 bg-success/12 text-success"
+  defp tool_status_class(:error), do: "border border-error/20 bg-error/12 text-error"
+  defp tool_status_class(_), do: "border border-base-300 bg-base-200 text-base-content/65"
+
+  defp tool_status_label(:running), do: "running"
+  defp tool_status_label(:ok), do: "ok"
+  defp tool_status_label(:error), do: "error"
+  defp tool_status_label(value), do: to_string(value)
 end
