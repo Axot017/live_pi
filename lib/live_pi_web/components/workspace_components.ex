@@ -3,8 +3,9 @@ defmodule LivePiWeb.WorkspaceComponents do
 
   attr :sidebar_open, :boolean, required: true
   attr :projects, :list, required: true
-  attr :selected_project_id, :string, required: true
+  attr :selected_project_id, :string, default: nil
   attr :repo_url, :string, required: true
+  attr :projects_root, :string, required: true
 
   def sidebar(assigns) do
     ~H"""
@@ -25,6 +26,10 @@ defmodule LivePiWeb.WorkspaceComponents do
       </div>
 
       <div class="border-b border-base-300 px-4 py-4">
+        <p class="mb-3 text-xs leading-5 text-base-content/55">
+          loading projects from
+          <span class="font-mono text-[11px] text-base-content/70">{@projects_root}</span>
+        </p>
         <.clone_form repo_url={@repo_url} />
       </div>
 
@@ -58,10 +63,14 @@ defmodule LivePiWeb.WorkspaceComponents do
   end
 
   attr :projects, :list, required: true
-  attr :selected_project_id, :string, required: true
+  attr :selected_project_id, :string, default: nil
 
   def project_list(assigns) do
     ~H"""
+    <div :if={Enum.empty?(@projects)} class="px-4 py-5 text-sm leading-6 text-base-content/55">
+      No projects found in the configured directory.
+    </div>
+
     <button
       :for={project <- @projects}
       type="button"
@@ -86,7 +95,7 @@ defmodule LivePiWeb.WorkspaceComponents do
     """
   end
 
-  attr :selected_project, :map, required: true
+  attr :selected_project, :map, default: nil
 
   def chat_header(assigns) do
     ~H"""
@@ -100,12 +109,20 @@ defmodule LivePiWeb.WorkspaceComponents do
           >
             projects
           </button>
-          <div class="min-w-0">
+          <div :if={@selected_project} class="min-w-0">
             <h2 class="truncate text-sm font-medium">{@selected_project.name}</h2>
             <p class="truncate text-xs text-base-content/50">{@selected_project.path}</p>
           </div>
+          <div :if={is_nil(@selected_project)} class="min-w-0">
+            <h2 class="truncate text-sm font-medium">No project selected</h2>
+            <p class="truncate text-xs text-base-content/50">
+              Configure LIVE_PI_PROJECTS_DIR and add folders.
+            </p>
+          </div>
         </div>
-        <div class="shrink-0 text-xs text-base-content/50">{@selected_project.branch}</div>
+        <div :if={@selected_project} class="shrink-0 text-xs text-base-content/50">
+          {@selected_project.branch}
+        </div>
       </div>
     </div>
     """

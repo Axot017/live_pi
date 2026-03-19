@@ -1,20 +1,25 @@
 defmodule LivePiWeb.WorkspaceLive do
   use LivePiWeb, :live_view
 
+  alias LivePi.Projects
   alias LivePiWeb.WorkspaceComponents
 
   @impl true
   def mount(_params, _session, socket) do
-    projects = mock_projects()
+    projects = Projects.list()
     selected_project = List.first(projects)
 
-    transcript_items = prepare_transcript(project_transcript(selected_project.id))
+    transcript_items =
+      selected_project
+      |> selected_project_transcript()
+      |> prepare_transcript()
 
     {:ok,
      socket
      |> assign(:page_title, "pi")
+     |> assign(:projects_root, Projects.projects_root())
      |> assign(:projects, projects)
-     |> assign(:selected_project_id, selected_project.id)
+     |> assign(:selected_project_id, selected_project && selected_project.id)
      |> assign(:selected_project, selected_project)
      |> assign(:transcript_items, transcript_items)
      |> assign(:expanded, default_expanded(transcript_items))
@@ -66,20 +71,13 @@ defmodule LivePiWeb.WorkspaceLive do
     if repo_url == "" do
       {:noreply, put_flash(socket, :error, "Paste a repository URL.")}
     else
-      project = mock_project_from_repo(repo_url)
-
-      transcript_items = prepare_transcript(project_transcript(project.id))
-
       {:noreply,
        socket
-       |> assign(:projects, [project | socket.assigns.projects])
-       |> assign(:selected_project_id, project.id)
-       |> assign(:selected_project, project)
-       |> assign(:transcript_items, transcript_items)
-       |> assign(:expanded, default_expanded(transcript_items))
-       |> assign(:repo_url, "")
-       |> assign(:sidebar_open, false)
-       |> put_flash(:info, "Added #{project.name}.")}
+       |> assign(:repo_url, repo_url)
+       |> put_flash(
+         :info,
+         "Clone flow is not implemented yet. Projects are loaded from #{socket.assigns.projects_root}."
+       )}
     end
   end
 
@@ -92,13 +90,18 @@ defmodule LivePiWeb.WorkspaceLive do
   def handle_event("send_message", %{"message" => message}, socket) do
     message = String.trim(message)
 
-    if message == "" do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign(:message, "")
-       |> append_mock_response(message)}
+    cond do
+      message == "" ->
+        {:noreply, socket}
+
+      is_nil(socket.assigns.selected_project) ->
+        {:noreply, put_flash(socket, :error, "No project selected.")}
+
+      true ->
+        {:noreply,
+         socket
+         |> assign(:message, "")
+         |> append_mock_response(message)}
     end
   end
 
@@ -223,31 +226,8 @@ defmodule LivePiWeb.WorkspaceLive do
     end
   end
 
-  defp mock_projects do
-    [
-      %{
-        id: "live-pi",
-        name: "live_pi",
-        branch: "main",
-        status: "active",
-        path: "/srv/pi-projects/live_pi"
-      },
-      %{
-        id: "dotfiles",
-        name: "dotfiles",
-        branch: "lab",
-        status: "idle",
-        path: "/srv/pi-projects/dotfiles"
-      },
-      %{
-        id: "ml-notes",
-        name: "ml-notes",
-        branch: "research",
-        status: "syncing",
-        path: "/srv/pi-projects/ml-notes"
-      }
-    ]
-  end
+  defp selected_project_transcript(nil), do: []
+  defp selected_project_transcript(project), do: project_transcript(project.id)
 
   defp project_transcript("live-pi") do
     [
@@ -424,27 +404,6 @@ defmodule LivePiWeb.WorkspaceLive do
     end)
   end
 
-  defp mock_project_from_repo(repo_url) do
-    repo_name =
-      repo_url
-      |> String.trim_trailing("/")
-      |> String.split("/")
-      |> List.last()
-      |> String.replace_suffix(".git", "")
-      |> case do
-        "" -> "new-project"
-        name -> name
-      end
-
-    %{
-      id: unique_id(repo_name),
-      name: repo_name,
-      branch: "main",
-      status: "queued",
-      path: "/srv/pi-projects/#{repo_name}"
-    }
-  end
-
   defp unique_id(prefix), do: "#{prefix}-#{System.unique_integer([:positive])}"
 
   @impl true
@@ -463,6 +422,7 @@ defmodule LivePiWeb.WorkspaceLive do
           projects={@projects}
           selected_project_id={@selected_project_id}
           repo_url={@repo_url}
+          projects_root={@projects_root}
         />
 
         <main class="flex min-h-screen flex-col bg-base-100">

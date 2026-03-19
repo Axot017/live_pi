@@ -6,6 +6,7 @@ defmodule LivePiWeb.PageControllerTest do
     html = html_response(conn, 200)
 
     assert html =~ "repository url"
-    assert html =~ "live_pi"
+    assert html =~ "loading projects from"
+    assert html =~ "No project selected"
   end
 end
