@@ -17,7 +17,7 @@ defmodule LivePiWeb.Router do
   scope "/", LivePiWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", WorkspaceLive, :index
   end
 
   # Other scopes may use custom stacks.
