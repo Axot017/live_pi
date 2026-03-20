@@ -78,6 +78,93 @@ summary {
   word-break: break-word;
 }
 
+.pi-markdown > :first-child {
+  margin-top: 0;
+}
+
+.pi-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.pi-markdown p,
+.pi-markdown ul,
+.pi-markdown ol,
+.pi-markdown pre,
+.pi-markdown blockquote,
+.pi-markdown h1,
+.pi-markdown h2,
+.pi-markdown h3,
+.pi-markdown h4 {
+  margin: 0 0 0.85rem;
+}
+
+.pi-markdown ul,
+.pi-markdown ol {
+  padding-left: 1.4rem;
+}
+
+.pi-markdown ul {
+  list-style: disc;
+}
+
+.pi-markdown ol {
+  list-style: decimal;
+}
+
+.pi-markdown li + li {
+  margin-top: 0.35rem;
+}
+
+.pi-markdown a {
+  color: color-mix(in oklab, var(--color-info) 88%, white 12%);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.pi-markdown code,
+.pi-markdown pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.pi-markdown :not(pre) > code {
+  border: 1px solid var(--color-base-300);
+  background: color-mix(in oklab, var(--color-base-300) 45%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.12rem 0.35rem;
+  font-size: 0.92em;
+}
+
+.pi-markdown pre {
+  overflow-x: auto;
+  border: 1px solid var(--color-base-300);
+  background: color-mix(in oklab, var(--color-base-100) 70%, transparent);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  line-height: 1.6;
+}
+
+.pi-markdown pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.pi-markdown blockquote {
+  border-left: 2px solid var(--color-base-300);
+  padding-left: 0.9rem;
+  color: color-mix(in oklab, var(--color-base-content) 74%, transparent);
+}
+
+.pi-markdown h1,
+.pi-markdown h2,
+.pi-markdown h3,
+.pi-markdown h4 {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--color-base-content);
+}
+
 .pi-scroll {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--color-base-content) 18%, transparent) transparent;
