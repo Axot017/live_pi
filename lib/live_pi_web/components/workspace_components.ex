@@ -1,6 +1,8 @@
 defmodule LivePiWeb.WorkspaceComponents do
   use LivePiWeb, :html
 
+  alias Phoenix.HTML
+
   attr :sidebar_open, :boolean, required: true
   attr :projects, :list, required: true
   attr :selected_project_id, :string, default: nil
@@ -293,8 +295,12 @@ defmodule LivePiWeb.WorkspaceComponents do
   attr :expanded, :map, required: true
 
   defp assistant_block(%{block: %{kind: :text}} = assigns) do
+    assigns = assign(assigns, :markdown_html, render_assistant_markdown(assigns.block.text))
+
     ~H"""
-    <p class="text-[15px] leading-7 text-base-content/88 sm:text-sm">{@block.text}</p>
+    <div class="pi-markdown text-[15px] leading-7 text-base-content/88 sm:text-sm">
+      {raw(@markdown_html)}
+    </div>
     """
   end
 
@@ -433,4 +439,16 @@ defmodule LivePiWeb.WorkspaceComponents do
 
   defp composer_button_label(true), do: "running"
   defp composer_button_label(false), do: "send"
+
+  defp render_assistant_markdown(text) do
+    text
+    |> Earmark.as_html!(%Earmark.Options{code_class_prefix: "language-", breaks: true})
+    |> HtmlSanitizeEx.basic_html()
+  rescue
+    _ ->
+      text
+      |> HTML.html_escape()
+      |> Phoenix.HTML.safe_to_string()
+      |> String.replace("\n", "<br>")
+  end
 end
