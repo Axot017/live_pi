@@ -203,7 +203,7 @@ defmodule LivePiWeb.WorkspaceLive do
     Enum.reduce(items, %{}, fn item, acc ->
       acc =
         if item.kind == :tool_run do
-          Map.put(acc, item.id, item.status == :running)
+          Map.put_new(acc, item.id, false)
         else
           acc
         end

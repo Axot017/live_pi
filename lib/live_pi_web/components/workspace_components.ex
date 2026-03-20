@@ -162,7 +162,7 @@ defmodule LivePiWeb.WorkspaceComponents do
       id="workspace-transcript"
       phx-hook="StickyTranscript"
       data-project-id={@project_id}
-      data-item-count={length(@items)}
+      data-item-count={Enum.count(@items, &(&1.kind != :system_notice))}
       class="pi-scroll min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
     >
       <.transcript_item :for={item <- @items} item={item} expanded={@expanded} />
@@ -280,14 +280,7 @@ defmodule LivePiWeb.WorkspaceComponents do
 
   def transcript_item(%{item: %{kind: :system_notice}} = assigns) do
     ~H"""
-    <article class="max-w-3xl rounded-xl border border-base-300 border-dashed bg-base-100 px-4 py-3">
-      <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/42">
-        <span>system</span>
-        <span>{@item.at}</span>
-      </div>
-      <h3 class="mt-2 text-sm font-medium text-base-content/88">{@item.title}</h3>
-      <p class="mt-1 text-sm leading-6 text-base-content/65">{@item.body}</p>
-    </article>
+    <span class="hidden"></span>
     """
   end
 
