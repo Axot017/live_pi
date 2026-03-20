@@ -96,6 +96,11 @@ defmodule LivePiWeb.WorkspaceComponents do
   end
 
   attr :selected_project, :map, default: nil
+  attr :session_ready, :boolean, required: true
+  attr :session_alive, :boolean, required: true
+  attr :session_streaming, :boolean, required: true
+  attr :session_compacting, :boolean, required: true
+  attr :session_error, :string, default: nil
 
   def chat_header(assigns) do
     ~H"""
@@ -120,9 +125,26 @@ defmodule LivePiWeb.WorkspaceComponents do
             </p>
           </div>
         </div>
-        <div :if={@selected_project} class="shrink-0 text-xs text-base-content/50">
-          {@selected_project.branch}
+        <div class="flex shrink-0 items-center gap-2 text-xs text-base-content/50">
+          <span :if={@selected_project}>{@selected_project.branch}</span>
+          <span
+            :if={
+              status =
+                session_status(
+                  @session_ready,
+                  @session_alive,
+                  @session_streaming,
+                  @session_compacting
+                )
+            }
+            class={status_badge_class(status)}
+          >
+            {status_label(status)}
+          </span>
         </div>
+      </div>
+      <div :if={@session_error} class="border-t border-base-300 px-4 py-2 text-xs text-error sm:px-6">
+        {@session_error}
       </div>
     </div>
     """
@@ -311,10 +333,13 @@ defmodule LivePiWeb.WorkspaceComponents do
   end
 
   attr :message, :string, required: true
+  attr :disabled, :boolean, required: true
+  attr :busy, :boolean, required: true
 
   def composer(assigns) do
     ~H"""
     <form
+      id="chat-composer"
       phx-change="update_message"
       phx-submit="send_message"
       class="sticky bottom-0 border-t border-base-300 bg-base-100 px-4 py-3 sm:px-6 sm:py-4"
@@ -325,15 +350,17 @@ defmodule LivePiWeb.WorkspaceComponents do
           id="chat-message"
           name="message"
           rows="4"
-          placeholder="message"
-          class="w-full resize-none bg-transparent text-base leading-7 outline-none placeholder:text-base-content/35"
+          placeholder={composer_placeholder(@disabled, @busy)}
+          disabled={@disabled or @busy}
+          class="w-full resize-none bg-transparent text-base leading-7 outline-none placeholder:text-base-content/35 disabled:cursor-not-allowed disabled:opacity-60"
         >{@message}</textarea>
         <div class="mt-3 flex justify-end border-t border-base-300 pt-3">
           <button
             type="submit"
-            class="min-h-11 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm transition hover:bg-base-300"
+            disabled={@disabled or @busy}
+            class="min-h-11 rounded-lg border border-base-300 bg-base-100 px-4 py-2 text-sm transition hover:bg-base-300 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            send
+            {composer_button_label(@busy)}
           </button>
         </div>
       </div>
@@ -364,4 +391,39 @@ defmodule LivePiWeb.WorkspaceComponents do
   defp tool_status_label(:ok), do: "ok"
   defp tool_status_label(:error), do: "error"
   defp tool_status_label(value), do: to_string(value)
+
+  defp session_status(false, false, _streaming, _compacting), do: :starting
+  defp session_status(_ready, false, _streaming, _compacting), do: :offline
+  defp session_status(_ready, true, _streaming, true), do: :compacting
+  defp session_status(_ready, true, true, _compacting), do: :streaming
+  defp session_status(true, true, false, false), do: :ready
+  defp session_status(false, true, false, false), do: :starting
+
+  defp status_badge_class(:ready),
+    do: "rounded-md border border-success/20 bg-success/12 px-2 py-1 text-success"
+
+  defp status_badge_class(:streaming),
+    do: "rounded-md border border-warning/20 bg-warning/12 px-2 py-1 text-warning"
+
+  defp status_badge_class(:compacting),
+    do: "rounded-md border border-info/20 bg-info/12 px-2 py-1 text-info"
+
+  defp status_badge_class(:offline),
+    do: "rounded-md border border-error/20 bg-error/12 px-2 py-1 text-error"
+
+  defp status_badge_class(:starting),
+    do: "rounded-md border border-base-300 bg-base-200 px-2 py-1 text-base-content/65"
+
+  defp status_label(:ready), do: "ready"
+  defp status_label(:streaming), do: "streaming"
+  defp status_label(:compacting), do: "compacting"
+  defp status_label(:offline), do: "offline"
+  defp status_label(:starting), do: "starting"
+
+  defp composer_placeholder(true, _busy), do: "session unavailable"
+  defp composer_placeholder(false, true), do: "pi is responding…"
+  defp composer_placeholder(false, false), do: "message"
+
+  defp composer_button_label(true), do: "running"
+  defp composer_button_label(false), do: "send"
 end
