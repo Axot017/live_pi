@@ -252,7 +252,7 @@ defmodule LivePiWeb.WorkspaceLive do
           projects_root={@projects_root}
         />
 
-        <main class="flex min-h-screen flex-col bg-base-100">
+        <main class="flex h-screen min-h-0 flex-col bg-base-100">
           <WorkspaceComponents.chat_header
             selected_project={@selected_project}
             session_ready={@session_ready}
@@ -261,7 +261,11 @@ defmodule LivePiWeb.WorkspaceLive do
             session_compacting={@session_compacting}
             session_error={@session_error}
           />
-          <WorkspaceComponents.transcript items={@transcript_items} expanded={@expanded} />
+          <WorkspaceComponents.transcript
+            items={@transcript_items}
+            expanded={@expanded}
+            project_id={@selected_project_id}
+          />
           <WorkspaceComponents.composer
             message={@message}
             disabled={is_nil(@selected_project) or !@session_alive}

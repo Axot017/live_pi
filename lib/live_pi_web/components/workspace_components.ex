@@ -152,10 +152,17 @@ defmodule LivePiWeb.WorkspaceComponents do
 
   attr :items, :list, required: true
   attr :expanded, :map, required: true
+  attr :project_id, :string, default: nil
 
   def transcript(assigns) do
     ~H"""
-    <div class="pi-scroll flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+    <div
+      id="workspace-transcript"
+      phx-hook="StickyTranscript"
+      data-project-id={@project_id}
+      data-item-count={length(@items)}
+      class="pi-scroll min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
+    >
       <.transcript_item :for={item <- @items} item={item} expanded={@expanded} />
     </div>
     """

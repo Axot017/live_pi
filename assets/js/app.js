@@ -25,11 +25,70 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/live_pi"
 import topbar from "../vendor/topbar"
 
+const StickyTranscript = {
+  mounted() {
+    this.threshold = 24
+    this.stickToBottom = true
+    this.lastProjectId = this.projectId()
+    this.onScroll = () => {
+      this.stickToBottom = this.isNearBottom()
+    }
+
+    this.observer = new MutationObserver(() => {
+      const projectChanged = this.projectId() !== this.lastProjectId
+
+      if (projectChanged) {
+        this.lastProjectId = this.projectId()
+        this.afterLayout(() => this.scrollToBottom())
+        return
+      }
+
+      if (this.stickToBottom || this.isNearBottom()) {
+        this.afterLayout(() => this.scrollToBottom())
+      }
+    })
+
+    this.el.addEventListener("scroll", this.onScroll)
+    this.observer.observe(this.el, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["data-project-id", "data-item-count"]
+    })
+
+    this.afterLayout(() => this.scrollToBottom())
+  },
+
+  destroyed() {
+    this.el.removeEventListener("scroll", this.onScroll)
+    this.observer?.disconnect()
+  },
+
+  projectId() {
+    return this.el.dataset.projectId || ""
+  },
+
+  isNearBottom() {
+    const distanceFromBottom = this.el.scrollHeight - this.el.scrollTop - this.el.clientHeight
+    return distanceFromBottom <= this.threshold
+  },
+
+  scrollToBottom() {
+    this.el.scrollTop = this.el.scrollHeight
+    this.stickToBottom = true
+  },
+
+  afterLayout(callback) {
+    requestAnimationFrame(() => requestAnimationFrame(callback))
+  },
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {StickyTranscript, ...colocatedHooks},
 })
 
 // Show progress bar on live navigation and form submits
