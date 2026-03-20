@@ -1,6 +1,7 @@
 defmodule LivePiWeb.WorkspaceLive do
   use LivePiWeb, :live_view
 
+  alias LivePi.PiSessions
   alias LivePi.Projects
   alias LivePiWeb.WorkspaceComponents
 
@@ -9,23 +10,28 @@ defmodule LivePiWeb.WorkspaceLive do
     projects = Projects.list()
     selected_project = List.first(projects)
 
-    transcript_items =
-      selected_project
-      |> selected_project_transcript()
-      |> prepare_transcript()
+    socket =
+      socket
+      |> assign(:page_title, "pi")
+      |> assign(:projects_root, Projects.projects_root())
+      |> assign(:projects, projects)
+      |> assign(:selected_project_id, selected_project && selected_project.id)
+      |> assign(:selected_project, selected_project)
+      |> assign(:transcript_items, [])
+      |> assign(:expanded, %{})
+      |> assign(:repo_url, "")
+      |> assign(:message, "")
+      |> assign(:sidebar_open, false)
+      |> assign(:session_ready, false)
+      |> assign(:session_alive, false)
+      |> assign(:session_streaming, false)
+      |> assign(:session_compacting, false)
+      |> assign(:session_error, nil)
+      |> assign(:session_topic, nil)
 
-    {:ok,
-     socket
-     |> assign(:page_title, "pi")
-     |> assign(:projects_root, Projects.projects_root())
-     |> assign(:projects, projects)
-     |> assign(:selected_project_id, selected_project && selected_project.id)
-     |> assign(:selected_project, selected_project)
-     |> assign(:transcript_items, transcript_items)
-     |> assign(:expanded, default_expanded(transcript_items))
-     |> assign(:repo_url, "")
-     |> assign(:message, "")
-     |> assign(:sidebar_open, false)}
+    socket = attach_project_session(socket, selected_project)
+
+    {:ok, socket}
   end
 
   @impl true
@@ -33,15 +39,12 @@ defmodule LivePiWeb.WorkspaceLive do
     project =
       Enum.find(socket.assigns.projects, &(&1.id == id)) || socket.assigns.selected_project
 
-    transcript_items = prepare_transcript(project_transcript(project.id))
-
     {:noreply,
      socket
-     |> assign(:selected_project_id, project.id)
+     |> assign(:selected_project_id, project && project.id)
      |> assign(:selected_project, project)
-     |> assign(:transcript_items, transcript_items)
-     |> assign(:expanded, default_expanded(transcript_items))
-     |> assign(:sidebar_open, false)}
+     |> assign(:sidebar_open, false)
+     |> attach_project_session(project)}
   end
 
   @impl true
@@ -105,302 +108,95 @@ defmodule LivePiWeb.WorkspaceLive do
       is_nil(socket.assigns.selected_project) ->
         {:noreply, put_flash(socket, :error, "No project selected.")}
 
+      socket.assigns.session_streaming ->
+        {:noreply, put_flash(socket, :error, "pi is still streaming a response.")}
+
       true ->
-        {:noreply,
-         socket
-         |> assign(:message, "")
-         |> append_mock_response(message)}
+        case PiSessions.send_prompt(socket.assigns.selected_project.id, message) do
+          :ok ->
+            {:noreply, assign(socket, :message, "")}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, reason)}
+        end
     end
   end
 
-  defp append_mock_response(socket, prompt) do
-    project = socket.assigns.selected_project
-
-    user_item = %{
-      id: unique_id("user"),
-      kind: :user_message,
-      author: "you",
-      at: "now",
-      body: prompt
-    }
-
-    items =
-      prepare_transcript(
-        socket.assigns.transcript_items ++ [user_item] ++ mock_response_items(project, prompt)
-      )
-
-    assign(socket, :transcript_items, items)
-    |> assign(:expanded, Map.merge(default_expanded(items), socket.assigns.expanded))
+  @impl true
+  def handle_info({:pi_session_snapshot, project_id, snapshot}, socket) do
+    if socket.assigns.selected_project_id == project_id do
+      {:noreply, apply_snapshot(socket, snapshot)}
+    else
+      {:noreply, socket}
+    end
   end
 
   defp assign_cloned_project(socket, project) do
     projects = Projects.list()
-    transcript_items = prepare_transcript(selected_project_transcript(project))
 
     socket
     |> assign(:projects, projects)
     |> assign(:selected_project_id, project.id)
     |> assign(:selected_project, project)
-    |> assign(:transcript_items, transcript_items)
-    |> assign(:expanded, default_expanded(transcript_items))
     |> assign(:repo_url, "")
     |> assign(:sidebar_open, false)
+    |> attach_project_session(project)
   end
 
-  defp mock_response_items(project, prompt) do
-    prompt_downcased = String.downcase(prompt)
+  defp attach_project_session(socket, nil) do
+    maybe_unsubscribe(socket.assigns.session_topic)
 
-    cond do
-      String.contains?(prompt_downcased, "subagent") ->
-        [
-          assistant_turn(
-            "now",
-            [
-              text_block(
-                "I would delegate this as a tool-backed subagent run so the main thread stays readable."
-              ),
-              tool_call_block(
-                "subagent",
-                ~s|{"agent":"planner","task":"Plan the next implementation slice for #{project.name}"}|
-              )
-            ]
-          ),
-          tool_run(
-            "subagent",
-            :ok,
-            "planner completed and returned a concise build plan.",
-            "1. inspect current ui\n2. design typed transcript view\n3. wire rpc events into normalized items",
-            %{agent: "planner", output: "text"}
-          )
-        ]
+    socket
+    |> assign(:session_topic, nil)
+    |> apply_snapshot(empty_snapshot())
+  end
 
-      String.contains?(prompt_downcased, "tool") || String.contains?(prompt_downcased, "bash") ->
-        [
-          assistant_turn(
-            "now",
-            [
-              text_block(
-                "A real pi session would likely call tools here instead of replying with plain text."
-              ),
-              thinking_block(
-                "Check project state first, then inspect files, then summarize the result back into the thread."
-              ),
-              tool_call_block("bash", ~s|{"command":"rg -n \"LiveView\" lib test"}|)
-            ]
-          ),
-          tool_run(
-            "bash",
-            :running,
-            "Streaming tool output appears as its own transcript item.",
-            "lib/live_pi_web/live/workspace_live.ex:1:defmodule LivePiWeb.WorkspaceLive do\nlib/live_pi_web/components/workspace_components.ex:1:defmodule LivePiWeb.WorkspaceComponents do",
-            %{exit_code: 0, streamed: true}
-          )
-        ]
+  defp attach_project_session(socket, project) do
+    maybe_unsubscribe(socket.assigns.session_topic)
 
-      String.contains?(prompt_downcased, "confirm") ||
-          String.contains?(prompt_downcased, "delete") ->
-        [
-          assistant_turn(
-            "now",
-            [
-              text_block(
-                "Extensions can request input from the UI instead of forcing everything into plain text."
-              )
-            ]
-          ),
-          %{
-            id: unique_id("ui"),
-            kind: :ui_request,
-            method: "confirm",
-            title: "Confirm destructive action",
-            message: "Delete the selected session before continuing?",
-            options: ["confirm", "cancel"]
-          }
-        ]
+    case PiSessions.ensure_started(project) do
+      {:ok, _pid} ->
+        topic = PiSessions.topic(project.id)
 
-      true ->
-        [
-          assistant_turn(
-            "now",
-            [
-              text_block(
-                "For the real integration, this turn would be block-based: text, optional thinking, and tool calls inside one assistant message."
-              ),
-              thinking_block(
-                "Keep the transcript model typed so the UI can render text, tool activity, system notices, and extension prompts differently."
-              ),
-              tool_call_block("read", ~s|{"path":"lib/live_pi_web/live/workspace_live.ex"}|)
-            ]
-          ),
-          tool_run(
-            "read",
-            :ok,
-            "Tool runs are better shown as separate operational items under the assistant turn.",
-            "defmodule LivePiWeb.WorkspaceLive do\n  use LivePiWeb, :live_view\n  ...",
-            %{bytes: "4.8kb"}
-          ),
-          system_notice(
-            "now",
-            "turn complete",
-            "In RPC mode this would correspond to message_end / tool_execution_end / turn_end events."
-          )
-        ]
+        if connected?(socket) do
+          Phoenix.PubSub.subscribe(LivePi.PubSub, topic)
+        end
+
+        snapshot = PiSessions.snapshot(project.id)
+
+        socket
+        |> assign(:session_topic, topic)
+        |> apply_snapshot(snapshot)
+
+      {:error, reason} ->
+        socket
+        |> assign(:session_topic, nil)
+        |> apply_snapshot(%{empty_snapshot() | last_error: inspect(reason)})
     end
   end
 
-  defp selected_project_transcript(nil), do: []
-  defp selected_project_transcript(project), do: project_transcript(project.id)
+  defp maybe_unsubscribe(nil), do: :ok
 
-  defp project_transcript("live-pi") do
-    [
-      system_notice(
-        "09:08",
-        "session ready",
-        "Mocked transcript with typed items for future pi RPC integration."
-      ),
-      user_message("09:10", "Start with the UI only, but make room for richer pi messages."),
-      assistant_turn(
-        "09:11",
-        [
-          text_block("This mock shows the structure we will need once real pi events arrive."),
-          thinking_block(
-            "Assistant output is not only text. It can stream text, thinking, and tool-call construction separately."
-          ),
-          tool_call_block("read", ~s|{"path":"docs/rpc.md"}|)
-        ]
-      ),
-      tool_run(
-        "read",
-        :ok,
-        "A future LiveView can render tool execution independently from assistant prose.",
-        "# RPC Mode\n...\nmessage_update\ntool_execution_start\ntool_execution_end",
-        %{source: "docs/rpc.md"}
-      ),
-      assistant_turn(
-        "09:13",
-        [
-          text_block(
-            "Subagent calls are not first-class transcript messages in core pi, but they can still look good in UI as specialized tool activity."
-          ),
-          tool_call_block(
-            "subagent",
-            ~s|{"agent":"planner","task":"Design event normalization for web UI"}|
-          )
-        ]
-      ),
-      tool_run(
-        "subagent",
-        :ok,
-        "Subagent invocation shown as a tool run with its own output and status.",
-        "planner → recommend transcript item kinds: assistant_turn, tool_run, system_notice, ui_request",
-        %{agent: "planner"}
-      ),
-      %{
-        id: unique_id("ui"),
-        kind: :ui_request,
-        method: "confirm",
-        title: "Extension dialog example",
-        message: "RPC mode can ask the client to confirm, select, input, or edit text.",
-        options: ["confirm", "cancel"]
-      }
-    ]
+  defp maybe_unsubscribe(topic) do
+    Phoenix.PubSub.unsubscribe(LivePi.PubSub, topic)
   end
 
-  defp project_transcript("dotfiles") do
-    [
-      system_notice("Yesterday", "idle", "Lower activity project."),
-      user_message("Yesterday", "Flag risky changes first."),
-      assistant_turn(
-        "Yesterday",
-        [
-          text_block("This repo would mostly surface shell and file tool activity."),
-          tool_call_block("bash", ~s|{"command":"git diff --stat"}|)
-        ]
-      ),
-      tool_run(
-        "bash",
-        :ok,
-        "Compact terminal output fits well in a transcript row.",
-        " 3 files changed, 21 insertions(+), 8 deletions(-)",
-        %{cwd: "dotfiles"}
-      )
-    ]
+  defp apply_snapshot(socket, snapshot) do
+    transcript_items = snapshot.transcript_items || []
+    expanded = merge_expanded(socket.assigns.expanded, transcript_items)
+
+    socket
+    |> assign(:transcript_items, transcript_items)
+    |> assign(:expanded, expanded)
+    |> assign(:session_ready, snapshot.ready)
+    |> assign(:session_alive, snapshot.alive)
+    |> assign(:session_streaming, snapshot.is_streaming)
+    |> assign(:session_compacting, snapshot.is_compacting)
+    |> assign(:session_error, snapshot.last_error)
   end
 
-  defp project_transcript("ml-notes") do
-    [
-      system_notice(
-        "Monday",
-        "research",
-        "A quieter transcript can still mix user text, assistant text, and structured system items."
-      ),
-      user_message("Monday", "Keep only the strongest directions."),
-      assistant_turn(
-        "Monday",
-        [
-          text_block("This workspace is a good example of mostly textual turns."),
-          thinking_block("Show thinking collapsed by default so the chat stays readable.")
-        ]
-      )
-    ]
-  end
-
-  defp project_transcript(_id) do
-    [
-      system_notice(
-        "now",
-        "new project",
-        "Repository added. Future pi activity would appear here as typed transcript items."
-      ),
-      assistant_turn(
-        "now",
-        [text_block("Fresh workspace ready."), tool_call_block("read", ~s|{"path":"README.md"}|)]
-      )
-    ]
-  end
-
-  defp user_message(at, body) do
-    %{id: unique_id("user"), kind: :user_message, author: "you", at: at, body: body}
-  end
-
-  defp assistant_turn(at, blocks) do
-    %{id: unique_id("assistant"), kind: :assistant_turn, author: "pi", at: at, blocks: blocks}
-  end
-
-  defp tool_run(tool_name, status, summary, output, meta) do
-    %{
-      id: unique_id("tool"),
-      kind: :tool_run,
-      tool_name: tool_name,
-      status: status,
-      summary: summary,
-      output: output,
-      meta: meta
-    }
-  end
-
-  defp system_notice(at, title, body) do
-    %{id: unique_id("system"), kind: :system_notice, at: at, title: title, body: body}
-  end
-
-  defp text_block(text), do: %{kind: :text, text: text}
-  defp thinking_block(text), do: %{kind: :thinking, text: text}
-  defp tool_call_block(name, arguments), do: %{kind: :tool_call, name: name, arguments: arguments}
-
-  defp prepare_transcript(items) do
-    Enum.map(items, fn
-      %{kind: :assistant_turn, blocks: blocks} = item ->
-        blocks =
-          Enum.with_index(blocks)
-          |> Enum.map(fn {block, index} ->
-            Map.put_new(block, :id, "#{item.id}-block-#{index}")
-          end)
-
-        %{item | blocks: blocks}
-
-      item ->
-        item
-    end)
+  defp merge_expanded(previous, items) do
+    Map.merge(default_expanded(items), previous)
   end
 
   defp default_expanded(items) do
@@ -415,8 +211,8 @@ defmodule LivePiWeb.WorkspaceLive do
       if item.kind == :assistant_turn do
         Enum.reduce(item.blocks, acc, fn block, block_acc ->
           case block.kind do
-            :thinking -> Map.put(block_acc, block.id, false)
-            :tool_call -> Map.put(block_acc, block.id, false)
+            :thinking -> Map.put_new(block_acc, block.id, false)
+            :tool_call -> Map.put_new(block_acc, block.id, false)
             _ -> block_acc
           end
         end)
@@ -426,7 +222,16 @@ defmodule LivePiWeb.WorkspaceLive do
     end)
   end
 
-  defp unique_id(prefix), do: "#{prefix}-#{System.unique_integer([:positive])}"
+  defp empty_snapshot do
+    %{
+      ready: false,
+      alive: false,
+      is_streaming: false,
+      is_compacting: false,
+      last_error: nil,
+      transcript_items: []
+    }
+  end
 
   @impl true
   def render(assigns) do
@@ -448,9 +253,20 @@ defmodule LivePiWeb.WorkspaceLive do
         />
 
         <main class="flex min-h-screen flex-col bg-base-100">
-          <WorkspaceComponents.chat_header selected_project={@selected_project} />
+          <WorkspaceComponents.chat_header
+            selected_project={@selected_project}
+            session_ready={@session_ready}
+            session_alive={@session_alive}
+            session_streaming={@session_streaming}
+            session_compacting={@session_compacting}
+            session_error={@session_error}
+          />
           <WorkspaceComponents.transcript items={@transcript_items} expanded={@expanded} />
-          <WorkspaceComponents.composer message={@message} />
+          <WorkspaceComponents.composer
+            message={@message}
+            disabled={is_nil(@selected_project) or !@session_alive}
+            busy={@session_streaming or @session_compacting}
+          />
         </main>
       </div>
 
