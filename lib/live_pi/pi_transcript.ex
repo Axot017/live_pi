@@ -139,6 +139,7 @@ defmodule LivePi.PiTranscript do
           %{"type" => "toolCall"} = tool_call ->
             Map.merge(base, %{
               kind: :tool_call,
+              tool_call_id: Map.get(tool_call, "id"),
               name: Map.get(tool_call, "name", "tool"),
               arguments: encode_json(Map.get(tool_call, "arguments", %{}))
             })
@@ -158,9 +159,12 @@ defmodule LivePi.PiTranscript do
   end
 
   defp tool_result_item(message) do
+    tool_call_id = message["toolCallId"] || message_id(message)
+
     %{
-      id: tool_id(message["toolCallId"] || message_id(message)),
+      id: tool_id(tool_call_id),
       kind: :tool_run,
+      tool_call_id: tool_call_id,
       tool_name: message["toolName"] || "tool",
       status: if(message["isError"], do: :error, else: :ok),
       summary: nil,
@@ -217,6 +221,7 @@ defmodule LivePi.PiTranscript do
     %{
       id: tool_id(tool_call_id),
       kind: :tool_run,
+      tool_call_id: tool_call_id,
       tool_name: event["toolName"] || "tool",
       status: status,
       summary: event_summary(event),
