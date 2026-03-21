@@ -157,15 +157,23 @@ defmodule LivePiWeb.WorkspaceComponents do
   attr :project_id, :string, default: nil
 
   def transcript(assigns) do
+    display_items = prepare_display_items(assigns.items)
+    visible_count = Enum.count(display_items, &(&1.kind != :system_notice))
+
+    assigns =
+      assigns
+      |> assign(:display_items, display_items)
+      |> assign(:visible_count, visible_count)
+
     ~H"""
     <div
       id="workspace-transcript"
       phx-hook="StickyTranscript"
       data-project-id={@project_id}
-      data-item-count={length(@items)}
+      data-item-count={@visible_count}
       class="pi-scroll min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5"
     >
-      <.transcript_item :for={item <- @items} item={item} expanded={@expanded} />
+      <.transcript_item :for={item <- @display_items} item={item} expanded={@expanded} />
     </div>
     """
   end
@@ -193,7 +201,7 @@ defmodule LivePiWeb.WorkspaceComponents do
         <span>{@item.at}</span>
       </div>
 
-      <div class="space-y-3">
+      <div class="space-y-2.5">
         <.assistant_block :for={block <- @item.blocks} block={block} expanded={@expanded} />
       </div>
     </article>
@@ -201,51 +209,53 @@ defmodule LivePiWeb.WorkspaceComponents do
   end
 
   def transcript_item(%{item: %{kind: :tool_run}} = assigns) do
+    assigns = assign(assigns, :output_preview, preview_text(assigns.item.output, 220))
+
     ~H"""
-    <article class="max-w-3xl rounded-xl border border-base-300/90 bg-base-100 px-4 py-3">
-      <div class="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
-        <div class="flex items-center gap-2">
-          <span>tool</span>
-          <span class="rounded-md border border-base-300 bg-base-200 px-2 py-1 normal-case tracking-normal text-base-content/70">
-            {@item.tool_name}
-          </span>
+    <article class="max-w-3xl px-1 text-sm text-base-content/52">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1 space-y-1">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.18em] text-base-content/38">
+            <span>tool</span>
+            <span class="normal-case tracking-normal text-base-content/58">{@item.tool_name}</span>
+            <span class={[
+              "rounded-md px-1.5 py-0.5 normal-case tracking-normal",
+              tool_status_class(@item.status)
+            ]}>
+              {tool_status_label(@item.status)}
+            </span>
+          </div>
+
+          <p :if={Map.get(@item, :summary)} class="pi-raw-line text-xs leading-6 text-base-content/48">
+            {@item.summary}
+          </p>
+
+          <div :if={Map.get(@item, :output)} class="text-xs leading-6 text-base-content/44">
+            <div :if={!Map.get(@expanded, @item.id, false)} class="pi-terminal pi-raw-line">
+              {@output_preview}
+            </div>
+            <pre :if={Map.get(@expanded, @item.id, false)} class="pi-terminal pi-raw-block">{@item.output}</pre>
+          </div>
+
+          <div
+            :if={meta = Map.get(@item, :meta)}
+            class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-base-content/36"
+          >
+            <span :for={{label, value} <- meta}>
+              {label}: {value}
+            </span>
+          </div>
         </div>
-        <span class={[
-          "rounded-md px-2 py-1 normal-case tracking-normal",
-          tool_status_class(@item.status)
-        ]}>
-          {tool_status_label(@item.status)}
-        </span>
-      </div>
 
-      <p :if={Map.get(@item, :summary)} class="mt-3 text-sm leading-6 text-base-content/75">
-        {@item.summary}
-      </p>
-
-      <div :if={Map.get(@item, :output)} class="mt-3">
         <button
+          :if={expandable_text?(@item.output, 220)}
           type="button"
           phx-click="toggle_expand"
           phx-value-key={@item.id}
-          class="flex w-full items-center justify-between rounded-lg border border-base-300 bg-base-200/40 px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-base-content/50 transition hover:bg-base-200/70"
+          class="shrink-0 text-[11px] uppercase tracking-[0.18em] text-base-content/38 transition hover:text-base-content/60"
         >
-          <span>output</span>
-          <span>{if Map.get(@expanded, @item.id, false), do: "hide", else: "show"}</span>
+          {if Map.get(@expanded, @item.id, false), do: "less", else: "more"}
         </button>
-
-        <pre
-          :if={Map.get(@expanded, @item.id, false)}
-          class="pi-terminal mt-2 overflow-x-auto rounded-lg border border-base-300 bg-base-200/60 p-3 text-xs leading-6 text-base-content/78"
-        >{@item.output}</pre>
-      </div>
-
-      <div
-        :if={meta = Map.get(@item, :meta)}
-        class="mt-3 flex flex-wrap gap-2 text-xs text-base-content/50"
-      >
-        <span :for={{label, value} <- meta} class="rounded-md border border-base-300 px-2 py-1">
-          {label}: {value}
-        </span>
       </div>
     </article>
     """
@@ -280,14 +290,7 @@ defmodule LivePiWeb.WorkspaceComponents do
 
   def transcript_item(%{item: %{kind: :system_notice}} = assigns) do
     ~H"""
-    <article class="max-w-3xl rounded-xl border border-base-300 border-dashed bg-base-100 px-4 py-3">
-      <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/42">
-        <span>system</span>
-        <span>{@item.at}</span>
-      </div>
-      <h3 class="mt-2 text-sm font-medium text-base-content/88">{@item.title}</h3>
-      <p class="mt-1 text-sm leading-6 text-base-content/65">{@item.body}</p>
-    </article>
+    <span class="hidden"></span>
     """
   end
 
@@ -305,41 +308,98 @@ defmodule LivePiWeb.WorkspaceComponents do
   end
 
   defp assistant_block(%{block: %{kind: :thinking}} = assigns) do
+    assigns = assign(assigns, :preview, preview_text(assigns.block.text, 180))
+
     ~H"""
-    <div class="rounded-lg border border-base-300 bg-base-100/45">
+    <div class="flex items-start justify-between gap-3 px-1 text-xs leading-6 text-base-content/42">
+      <div class="min-w-0 flex-1">
+        <div class="mb-0.5 text-[11px] uppercase tracking-[0.18em] text-base-content/34">
+          thinking
+        </div>
+        <div :if={!Map.get(@expanded, @block.id, false)} class="pi-raw-line pi-terminal">
+          {@preview}
+        </div>
+        <div :if={Map.get(@expanded, @block.id, false)} class="pi-raw-block pi-terminal">
+          {@block.text}
+        </div>
+      </div>
       <button
+        :if={expandable_text?(@block.text, 180)}
         type="button"
         phx-click="toggle_expand"
         phx-value-key={@block.id}
-        class="flex w-full items-center justify-between px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-base-content/50"
+        class="shrink-0 text-[11px] uppercase tracking-[0.18em] text-base-content/36 transition hover:text-base-content/58"
       >
-        <span>thinking</span>
-        <span>{if Map.get(@expanded, @block.id, false), do: "hide", else: "show"}</span>
+        {if Map.get(@expanded, @block.id, false), do: "less", else: "more"}
       </button>
-      <div
-        :if={Map.get(@expanded, @block.id, false)}
-        class="border-t border-base-300 px-3 py-3 text-sm leading-6 text-base-content/65"
-      >
-        {@block.text}
-      </div>
     </div>
     """
   end
 
   defp assistant_block(%{block: %{kind: :tool_call}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:preview, preview_text(assigns.block.arguments, 180))
+      |> assign(:tool_run, Map.get(assigns.block, :tool_run))
+      |> assign(:tool_meta, get_in(assigns.block, [:tool_run, :meta]))
+      |> assign(:output_preview, preview_text(get_in(assigns.block, [:tool_run, :output]), 220))
+
     ~H"""
-    <div class="rounded-lg border border-base-300 bg-base-100/45">
-      <button
-        type="button"
-        phx-click="toggle_expand"
-        phx-value-key={@block.id}
-        class="flex w-full items-center justify-between px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-base-content/50"
-      >
-        <span>tool call · {@block.name}</span>
-        <span>{if Map.get(@expanded, @block.id, false), do: "hide", else: "show"}</span>
-      </button>
-      <div :if={Map.get(@expanded, @block.id, false)} class="border-t border-base-300 px-3 py-3">
-        <pre class="pi-terminal overflow-x-auto text-xs leading-6 text-base-content/72">{@block.arguments}</pre>
+    <div class="flex items-start justify-between gap-3 px-1 text-xs leading-6 text-base-content/42">
+      <div class="min-w-0 flex-1 space-y-1">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.18em] text-base-content/34">
+          <span>tool call</span>
+          <span class="normal-case tracking-normal text-base-content/52">{@block.name}</span>
+          <span
+            :if={@tool_run}
+            class={[
+              "rounded-md px-1.5 py-0.5 normal-case tracking-normal",
+              tool_status_class(@tool_run.status)
+            ]}
+          >
+            {tool_status_label(@tool_run.status)}
+          </span>
+        </div>
+
+        <div :if={!Map.get(@expanded, @block.id, false)} class="pi-raw-line pi-terminal">
+          {@preview}
+        </div>
+        <pre :if={Map.get(@expanded, @block.id, false)} class="pi-raw-block pi-terminal">{@block.arguments}</pre>
+
+        <div :if={@tool_run && @tool_run.output} class="text-[11px] leading-6 text-base-content/40">
+          <div :if={!Map.get(@expanded, @tool_run.id, false)} class="pi-terminal pi-raw-line">
+            {@output_preview}
+          </div>
+          <pre :if={Map.get(@expanded, @tool_run.id, false)} class="pi-raw-block pi-terminal">{@tool_run.output}</pre>
+        </div>
+
+        <div
+          :if={@tool_run && @tool_meta}
+          class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-base-content/34"
+        >
+          <span :for={{label, value} <- @tool_meta}>{label}: {value}</span>
+        </div>
+      </div>
+
+      <div class="flex shrink-0 items-center gap-3">
+        <button
+          :if={expandable_text?(@block.arguments, 180)}
+          type="button"
+          phx-click="toggle_expand"
+          phx-value-key={@block.id}
+          class="text-[11px] uppercase tracking-[0.18em] text-base-content/36 transition hover:text-base-content/58"
+        >
+          {if Map.get(@expanded, @block.id, false), do: "less", else: "more"}
+        </button>
+        <button
+          :if={@tool_run && expandable_text?(@tool_run.output, 220)}
+          type="button"
+          phx-click="toggle_expand"
+          phx-value-key={@tool_run.id}
+          class="text-[11px] uppercase tracking-[0.18em] text-base-content/36 transition hover:text-base-content/58"
+        >
+          {if Map.get(@expanded, @tool_run.id, false), do: "hide output", else: "show output"}
+        </button>
       </div>
     </div>
     """
@@ -451,4 +511,61 @@ defmodule LivePiWeb.WorkspaceComponents do
       |> Phoenix.HTML.safe_to_string()
       |> String.replace("\n", "<br>")
   end
+
+  defp prepare_display_items(items) do
+    tool_runs =
+      items
+      |> Enum.filter(&(&1.kind == :tool_run && Map.get(&1, :tool_call_id)))
+      |> Map.new(fn item -> {item.tool_call_id, item} end)
+
+    paired_tool_run_ids =
+      items
+      |> Enum.flat_map(fn item ->
+        if item.kind == :assistant_turn do
+          item.blocks
+          |> Enum.map(&Map.get(&1, :tool_call_id))
+          |> Enum.reject(&is_nil/1)
+        else
+          []
+        end
+      end)
+      |> MapSet.new()
+
+    items
+    |> Enum.map(fn item ->
+      if item.kind == :assistant_turn do
+        blocks =
+          Enum.map(item.blocks, fn block ->
+            if block.kind == :tool_call do
+              Map.put(block, :tool_run, tool_runs[Map.get(block, :tool_call_id)])
+            else
+              block
+            end
+          end)
+
+        %{item | blocks: blocks}
+      else
+        item
+      end
+    end)
+    |> Enum.reject(fn item ->
+      item.kind == :tool_run && Map.get(item, :tool_call_id) &&
+        MapSet.member?(paired_tool_run_ids, item.tool_call_id)
+    end)
+  end
+
+  defp preview_text(nil, _limit), do: ""
+
+  defp preview_text(text, limit) do
+    text = String.trim(text)
+
+    if String.length(text) > limit do
+      String.slice(text, 0, limit) <> "…"
+    else
+      text
+    end
+  end
+
+  defp expandable_text?(nil, _limit), do: false
+  defp expandable_text?(text, limit), do: String.length(String.trim(text)) > limit
 end

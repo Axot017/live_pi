@@ -95,7 +95,6 @@ defmodule LivePi.PiSession do
 
     state =
       state
-      |> put_user_message(message)
       |> put_pending(request_id, from, :prompt)
       |> send_command(command)
       |> broadcast_snapshot()
@@ -259,6 +258,7 @@ defmodule LivePi.PiSession do
     state
     |> reply_pending(id, :ok)
     |> Map.put(:last_error, nil)
+    |> send_command(%{id: command_id("messages"), type: "get_messages"})
     |> broadcast_snapshot()
   end
 
@@ -290,18 +290,6 @@ defmodule LivePi.PiSession do
     do: %{state | compacting: false}
 
   defp update_stream_flags(state, _event), do: state
-
-  defp put_user_message(state, message) do
-    timestamp = System.system_time(:millisecond)
-
-    user_message = %{
-      "role" => "user",
-      "timestamp" => timestamp,
-      "content" => message
-    }
-
-    update_in(state.transcript, &PiTranscript.put_message(&1, user_message))
-  end
 
   defp send_command(%{port: port} = state, command) do
     payload = Jason.encode!(command) <> "\n"
