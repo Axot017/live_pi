@@ -1,0 +1,12 @@
+_build/
+deps/
+assets/node_modules/
+cover/
+tmp/
+.git/
+.github/
+.env
+.env.*
+Dockerfile*
+README.md
+npm-debug.log*
