@@ -4,5 +4,5 @@
 elixir = "1.19"
 elixir-ls = "0.30.0"
 erlang = "28"
-github-cli = "2.91.0"
+github-cli = "2.92.0"
 node = "25"
